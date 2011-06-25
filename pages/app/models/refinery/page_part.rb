@@ -26,6 +26,14 @@ module Refinery
         self.body = "<p>#{body.gsub("\r\n\r\n", "</p><p>").gsub("\r\n", "<br/>")}</p>"
       end
     end
-
+    #generate a title_symbol from title
+    def to_title_symbol
+      title.to_s.gsub(/\ /, '').underscore.to_sym  
+    end
+    
+    #generate a section hash , can override with any option
+    def to_section(options={})
+      {:fallback=>part.body}.update(options)
+    end
   end
 end

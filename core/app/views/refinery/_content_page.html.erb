@@ -3,41 +3,40 @@
   css = []
 
   # if 'sections' is passed in as a local_assigns, all of this is ignored.
+  #  default sections if there are no assigned sections
+  section_config = ActiveSupport::OrderedHash.new  #correct method name
   if local_assigns[:sections].blank?
-    # always have a title
-    sections = [{:yield => :body_content_title, :fallback => page_title, :title => true}]
-
-    # append sections from this page.
-    @page.parts.inject(sections) do |s, part|
-      # we have some default yields, body_content_left and body_content_right
-      # these map to 'body' and 'side_body' fields in default Refinery.
-      section = {:fallback => part.body}
-      section[:yield] = case (title_symbol = part.title.to_s.gsub(/\ /, '').underscore.to_sym)
-        when :body then :body_content_left
-        when :side_body then :body_content_right
-        else title_symbol
-        end
-
-      # add section to the list unless we were specifically requested not to.
-      # otherwise, add css saying it's been removed.
-      unless (local_assigns[:hide_sections]||=[]).include?(section[:yield])
-        s << section
-      else
-        css << "no_#{section[:yield]}"
+    section_config= {
+      :body_content_title => {:fallback=>page_title, :title=>true},
+      :body_content_left => {},
+      :body_content_right => {}
+    }
+    #process page sections 
+    @page.parts.collect do |part|
+      title_symbol=part.to_title_symbol
+      title_symbol = :body_content_right  if title_symbol==:body
+      title_symbol = :body_content_left   if title_symbol==:side_body
+      section_config[title_symbol]=part.to_section
+    end
+    #delete hidden sections
+    section_config.each do |title_symbol,section|
+      if local_assigns[:hide_sections].include? title_symbol
+        section_config.delete(title_symbol)
+        css < "no_#{title_symbol
       end
-    end unless @page.nil? or @page.parts.blank?
-
-    # Ensure that even without @page.parts we still have body_content_left and body_content_right
-    all_yields = sections.collect{|s| s[:yield]}
-    sections << {:yield => :body_content_left} unless all_yields.include?(:body_content_left)
-    sections << {:yield => :body_content_right} unless all_yields.include?(:body_content_right)
+    end
+  else
+    #since we don't expect a hash from local_assigns[:sections]
+    local_assigns[:sections].each do |section|
+      section_config[section[:yield]]=section
+    end
   end
-
-  # you can add more sections to the list using something like this:
-  # sections |= [{:yield => :something_else, :fallback => another_method, :id => 'something'}]
-
-  sections.each do |section|
-    section[:html] = yield(section[:yield]) if section[:yield].present?
+  #render html for these sections
+  section_config.keys.each do |yield_sym|
+  end
+    section = section_config[:yield_sym]
+    #render_section_html 
+    section[:html] = yield(yield_sym) if yield_sym.present?
 
     if section[:html].blank? and !local_assigns[:show_empty_sections] and
        !local_assigns[:remove_automatic_sections] and section.keys.include?(:fallback) and
@@ -45,7 +44,7 @@
       section[:html] = raw(section[:fallback])
     end
 
-    dom_id = section[:id] || section[:yield]
+    dom_id = section[:id] || yield_sym
     if section[:html].present?
       if section[:title]
         section[:html] = "<h1 id='#{dom_id}'>#{section[:html]}</h1>".html_safe
@@ -58,6 +57,6 @@
   end
 -%>
 <section id='body_content'<%= " class='#{css.join(' ')}'" if css.present? %>>
-  <%= raw sections.map{|section| section[:html]}.join("\n") -%>
+  <%= raw section_config.values.collect{|section| section[:html]}*"\n" -%> 
 </section>
 <%= render :partial => '/refinery/draft_page_message' unless @page.nil? or @page.live? -%>
